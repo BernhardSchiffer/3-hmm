@@ -4,7 +4,7 @@ In this assignment, we'll be revising word recognition, this time using hidden M
 As with [assignment 1](https://github.com/seqlrn/1-dynamic-programming) (part 4), we'll be using the [free spoken digits](https://github.com/Jakobovski/free-spoken-digit-dataset) dataset.
 We will be using the [`hmmlearn`](https://hmmlearn.readthedocs.io/en/latest/index.html) library (which depends on numpy) 
 
-Please use [hmms.py](src/1-basics.py) for the whole assignment.
+Please use [hmms.py](src/hmms.py) for the whole assignment.
 When submitting your work, please do **not** include the dataset.
 
 
