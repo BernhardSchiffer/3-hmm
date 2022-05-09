@@ -7,6 +7,8 @@ import librosa
 import numpy as np
 import os
 from hmmlearn import hmm
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+import matplotlib.pyplot as plt
 
 # be reproducible...
 np.random.seed(1337)
@@ -45,6 +47,7 @@ for speaker in speakers:
 # implement a 6-fold cross-validation (x/v) loop so that each speaker acts as
 # test speaker while the others are used for training
 hmms = dict()
+cms = list()
 
 def get_linear_transmat(n_components: int):
     m1 = np.eye(n_components, k=0)
@@ -58,6 +61,8 @@ for speaker in speakers:
     test_speaker = speaker
     train_speakers = speakers.copy()
     train_speakers.remove(speaker)
+    print(test_speaker)
+    print(train_speakers)
 
 # allocate and initialize the HMMs, one for each digit; set a linear topology
 # choose and a meaningful number of states
@@ -66,7 +71,7 @@ for speaker in speakers:
 
     for d in digits:
 
-        n_components = 10
+        n_components = 3
         model = hmm.GaussianHMM(n_components=n_components, covariance_type='diag', init_params='cm', params='cmt')
         startprob = [1.0]
         startprob.extend([0.0 for i in range(n_components-1)])
@@ -80,8 +85,9 @@ for speaker in speakers:
 # train the HMMs using the fit method; data needs to be concatenated,
 # see https://github.com/hmmlearn/hmmlearn/blob/38b3cece4a6297e978a204099ae6a0a99555ec01/lib/hmmlearn/base.py#L439
     train_data = dict()
+    test_data = list()
     for d in digits:
-        train_data[d] = {'X': np.array([]), 'lenghts': []}
+        train_data[d] = {'X': np.array([]), 'lengths': []}   
 
     for key, observation in mfccs.items():
         digit, tmp_speaker, n = key.split('_')
@@ -93,27 +99,53 @@ for speaker in speakers:
                 train_data[digit]['X'] = observation
             else:
                 train_data[digit]['X'] = np.concatenate((train_data[digit]['X'], observation))
-            train_data[digit]['lenghts'].append(len(observation))
+            train_data[digit]['lengths'].append(len(observation))
+        if tmp_speaker == test_speaker:
+            test_data.append({'digit': digit, 'X': observation})
 
     for d in digits:
         print(f'training model for {d}')
         #print(train_data[d]['X'].shape)
-        #print(train_data[d]['lenghts'])
-        #print(len(train_data[d]['lenghts']))
-        hmms[d].fit(X=train_data[d]['X'], lengths=train_data[d]['lenghts'])
+        #print(train_data[d]['lengths'])
+        #print(len(train_data[d]['lengths']))
+        hmms[d].fit(X=train_data[d]['X'], lengths=train_data[d]['lengths'])
         #print(hmms[d].transmat_)
         #print(model.sample(20))
-    break
 
 # evaluate the trained models on the test speaker; how do you decide which word
 # was spoken?
+    d_true = []
+    d_pred = []
+    for data in test_data:
+        d_true.append(data['digit'])
+        #print(data)
+        probs = []
+        for d in digits:
+            score = hmms[d].score(X=data['X'])
+            probs.append((d, score))
+        
+        # find max prob
+        max_d, max_prob = max(probs, key=lambda x: x[1])
+        d_pred.append(max_d)
 
 # compute and display the confusion matrix
 # https://scikit-learn.org/stable/auto_examples/model_selection/plot_confusion_matrix.html
+    cm = confusion_matrix(d_true, d_pred)
+    cms.append(cm)
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm)
+    disp.plot()
+    plt.show()
 
 # %%
 # display the overall confusion matrix
-
+global_cm = cm[0]
+for cm in cms[1:]:
+    global_cm = global_cm + cm
+global_cm = global_cm / len(cm)
+disp = ConfusionMatrixDisplay(confusion_matrix=global_cm)
+disp.plot()
+plt.show()
+#%%
 # ---%<------------------------------------------------------------------------
 # Part 2: Decoding
 
