@@ -170,7 +170,7 @@ def generate_digit_sequenze(seq: list, speaker: str = ''):
 
     return sequenze, lengths
 
-generated, lengths = generate_digit_sequenze(seq=[1,2,3], speaker='george')
+generated, lengths = generate_digit_sequenze(seq=[1,2,3], speaker='yweweler')
 print(generated.shape)
 print(len(generated))
 print(lengths)
@@ -180,21 +180,68 @@ print(generated.shape)
 print(len(generated))
 print(lengths)
 
+# %%
 # combine the (previously trained) per-digit HMMs into one large meta HMM; make
 # sure to change the transition probabilities to allow transitions from one
 # digit to any other
-meta_model = hmm.GaussianHMM(n_components=10)
+
+meta_transmat = np.zeros((len(hmms)*n_components, len(hmms)*n_components))
+for d in digits:
+    transmat = hmms[d].transmat_
+    meta_transmat[d*transmat.shape[0]:(d+1)*transmat.shape[0], d*transmat.shape[1]:(d+1)*transmat.shape[1]] = transmat
+    loop_prob = 0.5
+    meta_transmat[d*transmat.shape[0]+transmat.shape[0]-1,d*transmat.shape[1]+transmat.shape[1]-1] = loop_prob
+
+    for digit in digits:
+        meta_transmat[d*transmat.shape[0]+transmat.shape[0]-1,digit*transmat.shape[1]] = (1.0-loop_prob)/(len(digits)-1)
+#print(meta_transmat)
+
+meta_means = np.zeros((len(hmms)*hmms[0].means_.shape[0], len(hmms)*hmms[0].means_.shape[1]))
+for d in digits:
+    means = hmms[d].means_
+    meta_means[d*means.shape[0]:(d+1)*means.shape[0], d*means.shape[1]:(d+1)*means.shape[1]] = means
+
+meta_covars = np.zeros((len(hmms)*hmms[0].covars_.shape[0], len(hmms)*hmms[0].covars_.shape[1], hmms[0].covars_.shape[2]))
+for d in digits:
+    covars = hmms[d].covars_
+    meta_covars[d*covars.shape[0]:(d+1)*covars.shape[0], d*covars.shape[1]:(d+1)*covars.shape[1]] = covars
+
+meta_startprob = [0 for i in range(meta_transmat.shape[0])]
+for i in range(meta_transmat.shape[0]):
+    if i % (meta_transmat.shape[0]/len(digits)) == 0:
+        meta_startprob[i] = 1.0 / len(digits)
+print(meta_startprob)
+
+meta_model = hmm.GaussianHMM(n_components=30, init_params='', params='', covariance_type='full')
+meta_model.startprob_ = meta_startprob
+meta_model.transmat_ = meta_transmat
+meta_model.means_ = meta_means
+meta_model.covars_ = meta_covars
 
 # use the `decode` function to get the most likely state sequence for the test
 # sequences; re-map that to a sequence of digits
+generated, lengths = generate_digit_sequenze(seq=[1,2,3], speaker='yweweler')
+print(meta_model.decode(X=generated, algorithm='viterbi'))
 
+# %%
 # use jiwer.wer to compute the word error rate between reference and decoded
 # digit sequence
+from jiwer import wer
+
+ground_truth = [1,2,3,4,5,6]
+generated, lengths = generate_digit_sequenze(seq=ground_truth, speaker='yweweler')
+hypothesis = meta_model.decode(X=generated, algorithm='viterbi')
+
+error = wer(ground_truth, hypothesis)
+print(error)
 
 # compute overall WER (ie. over the cross-validation)
 
 # ---%<------------------------------------------------------------------------
 # Optional: Decoding
 
+
+# %%
+hmms[0].covars_.shape
 
 # %%
