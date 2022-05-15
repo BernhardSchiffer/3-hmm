@@ -185,6 +185,38 @@ print(len(generated))
 print(lengths)
 
 # %%
+for d in digits:
+    n_components = 3
+    model = hmm.GaussianHMM(n_components=n_components, covariance_type='diag', init_params='cm', params='cmt')
+    startprob = [1.0]
+    startprob.extend([0.0 for i in range(n_components-1)])
+    model.startprob_ = np.array(startprob)
+    model.transmat_ = get_linear_transmat(n_components=n_components)
+    hmms[d] = model
+
+train_data = dict()
+test_data = list()
+for d in digits:
+    train_data[d] = {'X': np.array([]), 'lengths': []}   
+
+for key, observation in mfccs.items():
+    digit, tmp_speaker, n = key.split('_')
+    digit = int(digit)
+    n = int(n)
+
+    if tmp_speaker in speakers:
+        if train_data[digit]['X'].size == 0:
+            train_data[digit]['X'] = observation
+        else:
+            train_data[digit]['X'] = np.concatenate((train_data[digit]['X'], observation))
+        train_data[digit]['lengths'].append(len(observation))
+    if tmp_speaker == test_speaker:
+        test_data.append({'digit': digit, 'X': observation})
+
+for d in digits:
+    print(f'training model for {d}')
+    hmms[d].fit(X=train_data[d]['X'], lengths=train_data[d]['lengths'])
+
 # combine the (previously trained) per-digit HMMs into one large meta HMM; make
 # sure to change the transition probabilities to allow transitions from one
 # digit to any other
@@ -215,12 +247,13 @@ meta_model.transmat_ = meta_transmat
 meta_model.means_ = meta_means
 meta_model.covars_ = meta_covars
 
+# %%
 # use the `decode` function to get the most likely state sequence for the test
-# sequences; re-map that to a sequence of digits
-generated, lengths = generate_digit_sequenze(seq=[1,4,5,6,7,8,9], speaker='yweweler')
+generated, lengths = generate_digit_sequenze(seq=[1,2,3,4,5,6,7,8,9,0], speaker='yweweler')
 _, states = meta_model.decode(X=generated, algorithm='viterbi')
-
+# sequences; re-map that to a sequence of digits
 res = [i[0] for i in groupby([int(s/3) for s in states])]
+
 print(res)
 
 # %%
